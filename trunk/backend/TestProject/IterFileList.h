@@ -181,7 +181,17 @@ class  DefaultOpenHandler: public Icommand
 		void execute();
 	private:
 		TCHAR* currentCmd;
+		StringBuilder* strBuilder;
 };
+
+class  RefreshHandler: public Icommand
+{
+public:
+	RefreshHandler();
+	~RefreshHandler();
+	void execute();
+};
+
 
 class OpenLocation:public Icommand
 {
@@ -208,4 +218,5 @@ class CommandServer
 		int portnum;
 		Icommand* openCommand;
 		Icommand* stopFsMonitor;
+		Icommand* refreshMonitor;
 };
