@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				xmlns:s="library://ns.adobe.com/flex/spark" 
+				xmlns:mx="library://ns.adobe.com/flex/mx" 
+				autoDrawBackground="false"  width="98%" height="36" verticalCenter="0">
+	<fx:Script>
+		<![CDATA[
+			import com.greader.util;
+			
+			import mx.events.FlexEvent;
+			override public function set data(value:Object):void
+			{
+				
+			if(value.type=="normal")
+			{
+				iconFile.visible=true;
+				txtFileName.visible=true;
+				var newBmp:Bitmap=new Bitmap(util.getBmpData(value.fullpath+"\\"+value.fname));
+				if(newBmp!=null)
+				{
+					iconFile.source=newBmp;					
+				}
+				txtFileName.text=value.fname.toString();
+				this.toolTip=value.fullpath;
+				pageTips.visible=false;
+			}else if(value.type=="pageIndictor")
+			{
+				pageTips.visible=true;
+				iconFile.visible=false;
+				txtFileName.visible=false;
+			}
+		}
+		]]>		
+	</fx:Script>
+	<s:transitions>
+		<mx:Transition fromState="normal" toState="hovered">
+			<s:Animate target="{flightPlan}" duration="200">				
+				<s:SimpleMotionPath property="alpha"/>
+			</s:Animate>
+		</mx:Transition>
+		<mx:Transition fromState="hovered" toState="normal">
+			<s:Animate target="{flightPlan}" duration="200" >
+				<s:SimpleMotionPath property="alpha"/>
+			</s:Animate>
+		</mx:Transition>
+		<mx:Transition fromState="normal" toState="selected">
+			<s:Animate target="{flightPlan}" duration="200">				
+				<s:SimpleMotionPath property="alpha"/>
+			</s:Animate>
+		</mx:Transition>
+		<mx:Transition fromState="selected" toState="normal">
+			<s:Animate target="{flightPlan}" duration="200" >
+				<s:SimpleMotionPath property="alpha"/>
+			</s:Animate>
+		</mx:Transition>
+	</s:transitions>
+<s:states>
+	<s:State name="normal"/>
+	<s:State name="selected"/>
+	<s:State name="hovered"/>
+</s:states>
+	
+	<s:HGroup verticalAlign="middle" width="100%">
+		<s:filters>
+			<s:DropShadowFilter distance="2"/>
+		</s:filters>
+		<s:Group height="34" width="100%" id="normalType">
+			<s:Rect left="0" right="0" top="0" bottom="0" radiusX="3" radiusY="3">
+				<s:fill>
+					<s:SolidColor id="flightPlan" color.hovered="#2956a9" color="#2d5eB7" alpha=".7" alpha.hovered=".9" alpha.selected="1"/>
+				</s:fill>
+			</s:Rect>
+			<mx:Image id="iconFile" height="32" width="32" left="20"/>			
+			<s:Label id="txtFileName" color="#FFFFFF" left="60" verticalCenter="2" fontFamily="微软雅黑" />
+			<s:Label id="pageTips" text="按 -> 键翻到下一页 按  &lt;- 翻到上一页" color="yellow" fontFamily="微软雅黑" fontSize="14" left="65" top="10"/>
+		</s:Group>
+	</s:HGroup>
+</s:ItemRenderer>
