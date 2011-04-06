@@ -92,7 +92,7 @@ unsigned __stdcall fsmonitor::ThreadProc(void *lpParameter)
 {
 	BOOL isOk;
 	DWORD transBytes=0;	
-	ATTACHOBJ* iNotify;
+	ATTACHOBJ* iNotify={0,};
 	TCHAR fileNameBuff[2048]={0,};
 	fsmonitor* monitor=(fsmonitor*)lpParameter;
 	DWORD tId=0;
@@ -107,9 +107,11 @@ unsigned __stdcall fsmonitor::ThreadProc(void *lpParameter)
 				break;
 			}
 
-
 				DWORD nextOffset=0;
 				FILE_NOTIFY_INFORMATION * pfiNotifyInfo=(FILE_NOTIFY_INFORMATION*)iNotify->notifyBuffer;
+				if(IsBadStringPtr(pfiNotifyInfo->FileName,1)!=0)
+					continue;
+
 				do 
 				{
 					ZeroMemory(fileNameBuff,2048*sizeof(TCHAR));			
@@ -140,9 +142,81 @@ unsigned __stdcall fsmonitor::ThreadProc(void *lpParameter)
 						}						
 					}
 					nextOffset=pfiNotifyInfo->NextEntryOffset;
+					
 					switch(pfiNotifyInfo->Action)
-					{
-						case FILE_ACTION_ADDED:
+					{	
+						case FILE_ACTION_RENAMED_OLD_NAME:
+							{
+#ifdef DEBUG
+											_tprintf(_T("old filename=%s new filename="),fileNameBuff);
+#endif
+					
+							
+								if(nextOffset!=0)
+								{
+									BYTE* tPtr=(BYTE*)pfiNotifyInfo;
+									pfiNotifyInfo=(FILE_NOTIFY_INFORMATION*)(tPtr+nextOffset);
+								}
+
+								DWORD faction=pfiNotifyInfo->Action;
+								nextOffset=pfiNotifyInfo->NextEntryOffset;
+								if(iNotify->callback)
+								{
+									iNotify->callback(fileNameBuff,FILE_ACTION_REMOVED);
+								}
+
+								CHANGEINFO* cInfo1=(CHANGEINFO*)calloc(1,sizeof(CHANGEINFO));
+								if(cInfo1)
+								{
+									_tcsncpy(cInfo1->fullpath,fileNameBuff,_tcslen(fileNameBuff));
+									cInfo1->opType=FILE_ACTION_REMOVED;
+									monitor->addFileTo(cInfo1);
+								}else
+								{
+									_tprintf(_T("内存分配失败\n"));
+									break;
+								}	
+
+								if(faction==FILE_ACTION_RENAMED_NEW_NAME)
+								{
+									ZeroMemory(fileNameBuff,2048*sizeof(TCHAR));			
+									_tcscpy(fileNameBuff,iNotify->prefixPath);//可能有BUG
+									TCHAR splashChar=iNotify->prefixPath[_tcslen(iNotify->prefixPath)-1];
+									if(splashChar!=L'\\')
+									{
+										*(fileNameBuff+_tcslen(iNotify->prefixPath))=L'\\';
+										_tcsncpy(fileNameBuff+_tcslen(iNotify->prefixPath)+1,pfiNotifyInfo->FileName,pfiNotifyInfo->FileNameLength/sizeof(TCHAR));
+									}else
+									{
+										_tcsncpy(fileNameBuff+_tcslen(iNotify->prefixPath),pfiNotifyInfo->FileName,pfiNotifyInfo->FileNameLength/sizeof(TCHAR));
+									}
+									if(iNotify->callback)
+									{
+										iNotify->callback(fileNameBuff,FILE_ACTION_ADDED);
+									}
+									CHANGEINFO* cInfo2=(CHANGEINFO*)calloc(1,sizeof(CHANGEINFO));
+									if(cInfo2)
+									{
+										_tcsncpy(cInfo2->fullpath,fileNameBuff,_tcslen(fileNameBuff));
+										cInfo2->opType=FILE_ACTION_ADDED;
+										monitor->addFileTo(cInfo2);
+									}else
+									{
+										_tprintf(_T("内存分配失败\n"));
+										break;
+									}	
+#ifdef  DEBUG
+													_tprintf(_T("%s\n"),fileNameBuff);
+#endif
+					
+								}else
+								{
+									continue;
+								}
+
+								break;
+							}
+							case FILE_ACTION_ADDED :
 							{
 								if(iNotify->callback)
 								{

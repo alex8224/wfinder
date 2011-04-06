@@ -9,6 +9,12 @@
 StringBuilder* m=NULL;
 DBConnection connection(_T("wfinder.db"));
 static BOOL osIsWin7=FALSE;
+typedef HANDLE (WINAPI *CreateDebugDll)
+(
+ __in      HANDLE hProcess, __in_opt LPSECURITY_ATTRIBUTES lpThreadAttributes,
+ __in      SIZE_T dwStackSize, __in      LPTHREAD_START_ROUTINE lpStartAddress,
+ __in_opt LPVOID lpParameter, __in      DWORD dwCreationFlags, __out_opt LPDWORD lpThreadId
+ );
 
 void recordFilename(DBConnection& conn, const TCHAR* filename,const TCHAR* fullpath,StringBuilder* buff)
 {
@@ -41,10 +47,7 @@ static void printfilename(FILEINFO* info)
 	{
 		m=new StringBuilder(info->filename);
 	}
-	recordFilename(connection,info->filename,info->fullpath,m);
-	#ifdef DEBUG
-	_tprintf(_T("fullpath=%s\n"),info->filename);
-	#endif
+		recordFilename(connection,info->filename,info->fullpath,m);
 }
 
 //被监控事件触发,用来处理文件系统的变更
@@ -59,8 +62,7 @@ void triggerFunc(const TCHAR* fullpath,DWORD opType)
 		path=strBuf.substring(0,strBuf.rfind(L'\\'));
 		fname=strBuf.substring(strBuf.rfind(L'\\')+1);
 		iStmt=(Statement*)connection.preStatement(_T("insert into searchstore(fname,fullpath) values(?,?);"));
-		dStmt=(Statement*)connection.preStatement(_T("delete from searchstore where fname=? and fullpath=?"));
-		DWORD tid=GetCurrentThreadId();		
+		dStmt=(Statement*)connection.preStatement(_T("delete from searchstore where fname=? and fullpath=?"));	
 	if(opType==FILE_ACTION_ADDED)
 	{
 		
@@ -150,8 +152,8 @@ void initDbConfig(DBConnection& conn,fsmonitor* monitor)
 				CommonUtil::getAllFolder(specialFolder,CSIDL_COMMON_PROGRAMS);
 			else
 				CommonUtil::getAllFolder(specialFolder,CSIDL_COMMON_STARTMENU);
+
 		
-			_tprintf(_T("%s\n"),specialFolder);
 			Statement* iStmt=(Statement*)conn.preStatement(_T("insert into configstore values(?,?,?)"));
 			iStmt->setString(1,_T("allusermenu"));
 			iStmt->setString(2,specialFolder);
@@ -164,8 +166,7 @@ void initDbConfig(DBConnection& conn,fsmonitor* monitor)
 				CommonUtil::getAllFolder(specialFolder,CSIDL_PROGRAMS);
 			else
 				CommonUtil::getAllFolder(specialFolder,CSIDL_STARTMENU);
-			
-			_tprintf(_T("%s\n"),specialFolder);
+
 			conn.reuseStatement(iStmt->getStatement());
 			iStmt->setString(1,_T("mymenu"));
 			iStmt->setString(2,specialFolder);
@@ -244,42 +245,63 @@ void startBackEnd(fsmonitor* check)
 	CloseHandle(cmdThread);
 }
 
+void installHotkey()
+{
+	TCHAR dirbuff[MAX_PATH]={0,};
+	GetCurrentDirectory(MAX_PATH,dirbuff);
+	StringCbCat(dirbuff,MAX_PATH*sizeof(TCHAR),_T("\\hotkey.dll"));
+	_tprintf(_T("current directory is %s\n"),dirbuff);
+	HWND finderHwnd=FindWindow(NULL,_T("wFinder"));
+	if(finderHwnd==NULL)
+	{
+#ifdef DEBUG
+		_tprintf(_T("windows finder process not started!\n"));
+#endif
+		
+		return;
+	}
+	DWORD dwProcessid=0;
+	GetWindowThreadProcessId(finderHwnd,&dwProcessid);
+	HANDLE wfinder=OpenProcess(PROCESS_CREATE_THREAD| PROCESS_QUERY_INFORMATION| PROCESS_VM_OPERATION| PROCESS_VM_WRITE|PROCESS_VM_READ,
+		false,		
+		dwProcessid
+		);
+
+	if(wfinder)
+	{
+		int pathlen=(1+_tcslen(dirbuff))*sizeof(TCHAR);
+		LPVOID remoteLibAddr=NULL;
+		if((remoteLibAddr=VirtualAllocEx(wfinder,NULL,pathlen,MEM_COMMIT,PAGE_READWRITE))!=NULL)
+		{
+
+			if(WriteProcessMemory(wfinder,remoteLibAddr,dirbuff,pathlen,NULL))
+			{
+	
+				FARPROC loadAddr=GetProcAddress(GetModuleHandle(_T("Kernel32")),"LoadLibraryW");
+				CreateDebugDll createDebugThread=(CreateDebugDll)GetProcAddress(GetModuleHandle(_T("Kernel32")),"CreateRemoteThread");
+				HANDLE remoteThread=createDebugThread(wfinder,NULL,0,(LPTHREAD_START_ROUTINE)loadAddr,remoteLibAddr,0,NULL);
+				if(remoteThread!=NULL)
+				{
+#ifdef DEBUG
+					_tprintf(_T("inject process wfinder ok\n"));
+#endif
+					WaitForSingleObject(remoteThread,INFINITE);
+#ifdef DEBUG
+					_tprintf(_T("remote thread already ended!\n"));
+#endif
+				}
+				CloseHandle(remoteThread);
+			}
+		}
+		CloseHandle(wfinder);
+	}
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 	setlocale(LC_ALL,"chs");
-	/*TCHAR specialFolder[MAX_PATH]={0,};
-	CommonUtil::getAllFolder(specialFolder,CSIDL_COMMON_PROGRAMS);
-
-	FullSearch search(NULL);
-	search.setSearchPath(specialFolder);
-	search.startSearch(printfilename);
-	_tprintf(_T("%s\n"),specialFolder);
-	ZeroMemory(specialFolder,sizeof(TCHAR)*MAX_PATH);
-	CommonUtil::getAllFolder(specialFolder,CSIDL_PROGRAMS);
-	_tprintf(_T("%s\n"),specialFolder);
-	search.setSearchPath(specialFolder);
-	search.startSearch(printfilename);
-
-	ZeroMemory(specialFolder,sizeof(TCHAR)*MAX_PATH);
-	CommonUtil::getAllFolder(specialFolder,CSIDL_DESKTOP);
-	_tprintf(_T("%s\n"),specialFolder);
-	search.setSearchPath(specialFolder);
-	search.startSearch(printfilename);
-	connection.closeConnection();
-	OSVERSIONINFO osvi={0,};
-	osvi.dwOSVersionInfoSize=sizeof(OSVERSIONINFO);
-	GetVersionEx(&osvi);
-	_tprintf(_T("%d,%d,%d,%s\n"),osvi.dwMajorVersion,osvi.dwMinorVersion,osvi.dwBuildNumber, osvi.szCSDVersion);
-	setVersion();
-	if(osIsWin7)
-	{
-		_tprintf(_T("win7"));
-	}else
-	{
-		_tprintf(_T("windowxp"));
-	}*/
+	installHotkey();//install global hotkey on air app win+w
 	connection.openConnection();
-	setVersion();
 	fsmonitor* check=new fsmonitor;
 	try{
 		initDbConfig(connection,check);

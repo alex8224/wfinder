@@ -301,9 +301,9 @@ void FullSearch::startSearch(SEARCHCALLBACK callback)
 
 		StringBuilder* tM=pathStack.top();
 		pathStack.pop();
-		StringBuilder* directory=tM->substring(0,tM->rfind(L'\\'));	
+		StringBuilder* directory=tM->substring(0,tM->rfind(L'\\'));
+
 		tM->append(_T("*.*"));
-		//tM->append(_T("*.*"));
 		hFind=FindFirstFile((LPCTSTR)tM->c_str(),&findFileData);
 		if(hFind==INVALID_HANDLE_VALUE)
 		{
@@ -345,7 +345,6 @@ void FullSearch::startSearch(SEARCHCALLBACK callback)
 						finfo.filesize=findFileData.nFileSizeHigh*(MAXWORD+1)+findFileData.nFileSizeLow;
 						callback(&finfo);
 					}
-
 				}
 				filecount++;
 			}
@@ -680,15 +679,18 @@ void FileSystemCommand::execute()
 DefaultOpenHandler::DefaultOpenHandler():
 	currentCmd(NULL)
 {
+	strBuilder=new StringBuilder;
 }
 
 DefaultOpenHandler::~DefaultOpenHandler()
 {
-	
+	delete strBuilder;
 }
 
 void DefaultOpenHandler::setCmdText(TCHAR* cmdText)
 {
+	strBuilder->clear();
+	strBuilder->append(cmdText);
 	currentCmd=cmdText;
 }
 
@@ -696,12 +698,49 @@ void DefaultOpenHandler::setCmdText(TCHAR* cmdText)
 //need delete tchar*?
 void DefaultOpenHandler::execute()
 {
-	int code=(int)ShellExecute(NULL,_T("open"),currentCmd,NULL,NULL,SW_SHOWNORMAL);
-	if(code<32)
-	{
-		_tprintf(_T("%s execute failed,errcode=%d\n"),currentCmd,code);	
-	}
+	StringBuilder* openCmd=strBuilder->substring(strBuilder->find(L'|')+1);
+#ifdef DEBUG
+	_tprintf(_T("opencmd=%s\n"),openCmd->c_str());
+#endif
+ if(strBuilder->startwith(_T("open|")))	
+ {
+	ShellExecute(NULL,_T("open"),openCmd->c_str(),NULL,NULL,SW_SHOWNORMAL);
+ }else if(strBuilder->startwith(_T("location|")))
+ {
+	 STARTUPINFO si;
+	 PROCESS_INFORMATION pi;
+
+	 ZeroMemory( &si, sizeof(si) );
+	 si.cb = sizeof(si);
+	 ZeroMemory( &pi, sizeof(pi) );
+    StringBuilder str;
+	str.append(_T("explorer.exe /select,")).append(*openCmd);
+
+	// Start the child process. 
+	CreateProcess(NULL,str.c_str(),NULL,NULL,FALSE,0,NULL,NULL,&si,&pi);
+	 WaitForSingleObject( pi.hProcess, INFINITE );
+
+	 CloseHandle( pi.hProcess );
+	 CloseHandle( pi.hThread );
+ }
+ delete openCmd;
 }
+
+RefreshHandler::RefreshHandler()
+{
+	
+}
+
+void RefreshHandler::execute()
+{
+	//execute refresh operation
+}
+
+RefreshHandler::~RefreshHandler()
+{
+
+}
+
 
 CommandServer::CommandServer(int port,void* check):
 	runflag(TRUE),portnum(1982)
@@ -767,15 +806,13 @@ void CommandServer::serverforever()
 				if(_tcscmp(_T("quit"),utfBuffer)==0)
 				{
 					stopFsMonitor->execute();
-				}else
+				}else if(_tcscmp(_T("location"),utfBuffer)==0)
 				{
-					TCHAR* cmdBuff=utfBuffer+4;				
-#ifdef DEBUG
-					_tprintf(_T("cmdtext=%s\n"),cmdBuff);
-#endif
 					
+				}
+				{
 					DefaultOpenHandler* opener=(DefaultOpenHandler*)openCommand;
-					opener->setCmdText(cmdBuff);
+					opener->setCmdText(utfBuffer);
 					opener->execute();
 					ZeroMemory(utfBuffer,sizeof(TCHAR)*4096);
 					ZeroMemory(byteBuffer,sizeof(char)*4096);
