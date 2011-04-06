@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" width="280" height="38" 
+		 creationComplete="group1_creationCompleteHandler(event)"
+		 focusIn="group1_focusInHandler(event)" 
+		 >
+	<s:layout>
+		<s:BasicLayout/>
+	</s:layout>
+	<fx:Metadata>
+		[Event(name="search", type="com.greader.event.SearchEvent")]
+		[Event(name="focusText",type="com.greader.event.FocusTextEvent")]
+	</fx:Metadata> 
+
+	<fx:Script>
+		<![CDATA[
+			import com.greader.event.FocusTextEvent;
+			import com.greader.event.SearchEvent;
+			
+			import flashx.textLayout.formats.TextLayoutFormat;
+			
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import mx.utils.StringUtil;
+			
+			import spark.events.TextOperationEvent;
+			import spark.filters.BlurFilter;
+			import spark.filters.DropShadowFilter;
+			
+			protected function richeditabletext1_changeHandler(event:TextOperationEvent):void
+			{
+				if(container.text.length>=2)
+				{
+					var evt:SearchEvent=new SearchEvent(container.text);
+					dispatchEvent(evt);
+				}
+			}
+
+			protected function group1_creationCompleteHandler(event:FlexEvent):void
+			{
+				var dFilter:spark.filters.DropShadowFilter=new spark.filters.DropShadowFilter;
+				dFilter.inner=true;			
+				dFilter.color=0x000000;
+				dFilter.angle=65;	
+				dFilter.distance=1;
+				container.filters=[dFilter];
+				this.addEventListener(FocusTextEvent.FOCUS_TEXT,toTextInput);
+				container.text="在此输入关键字搜索";
+				container.selectAll();				
+			}
+
+			protected function toTextInput(event:FocusTextEvent):void
+			{
+					container.setFocus();
+					container.selectRange(container.text.length,container.text.length);
+			}
+
+			protected function container_keyDownHandler(event:KeyboardEvent):void
+			{							
+				
+				//dispatchEvent(event);
+			}
+
+			protected function group1_focusInHandler(event:FocusEvent):void
+			{
+				container.setFocus();
+			}
+			
+			public function get searchtext():String
+			{
+				return container.text;
+			}
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+	</fx:Declarations>
+	<s:Rect left="0" top="0" right="0" bottom="0" radiusX="10" radiusY="10" alpha=".9">
+		<s:fill>
+			<s:SolidColor  color="#2956a9"/>
+		</s:fill>
+	</s:Rect>
+	<s:Rect id="titleLight" left="0" right="0" top="0" height="3" radiusX="10" radiusY="10">
+		<s:filters>
+			<s:BlurFilter/>
+		</s:filters>
+		<s:fill>
+			<s:SolidColor color="white" alpha=".6"/>
+		</s:fill>
+	</s:Rect>
+	<s:TextInput fontWeight="bold" left="10" right="10" verticalCenter="middle"
+				 textAlign="center" 
+				 top="20"
+				 bottom="10" 
+				 id="container" 
+				 change="richeditabletext1_changeHandler(event)"  
+				 keyDown="container_keyDownHandler(event)"
+				 borderVisible="false"
+				 fontFamily="微软雅黑"
+				 color="#000000" 
+				 fontSize="14"/>
+</s:Group>
+

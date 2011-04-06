@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" 
+					   xmlns:s="library://ns.adobe.com/flex/spark" 
+					   xmlns:mx="library://ns.adobe.com/flex/mx"
+					    preloader="com.greader.views.BlankLoader"						 
+					   creationCompleteEffect="{fadeEffect}" 
+					   frameRate="8" 
+					   showStatusBar="false" 
+					   creationComplete="windowedapplication1_creationCompleteHandler(event)"
+					   xmlns:views="com.greader.views.*" 
+					   height="442" 
+					   width="551" 
+					   xmlns:reflect="flex.lang.reflect.*"
+					   backgroundAlpha="0" alwaysInFront="true"
+					   visible="false"
+					   >
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+		<s:Fade id="fadeEffect" target="{this}" alphaFrom="0" alphaTo="1" repeatCount="1" repeatBehavior="reverse"/>
+	</fx:Declarations>
+	
+
+	<fx:Script>
+		<![CDATA[
+			import com.greader.commutil.BuilderDb;
+			import com.greader.controller.ConnectToServer;
+			import com.greader.controller.TestSqlCommand;
+			import com.greader.event.ExecuteEvent;
+			import com.greader.views.*;
+			
+			import flash.utils.setTimeout;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.*;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
+			import mx.events.ListEvent;
+			import mx.managers.PopUpManager;
+			import mx.utils.StringUtil;
+			
+			import spark.components.Application;
+			import spark.components.TextInput;
+			import spark.components.TitleWindow;
+			import spark.events.IndexChangeEvent;
+			
+			
+			private var stubForServer:ConnectToServer;
+			private var conn:TestSqlCommand=new TestSqlCommand;
+			
+			[Embed(source="icon/icon_032.png")]
+			public var trayIcon:Class;
+			
+			public static var memConnection:SQLConnection=null;
+
+			private function centerMeOnScreen():void
+			{
+				this.x=Screen.mainScreen.bounds.x/2;
+				this.y=Screen.mainScreen.bounds.y/2;
+				var initialBounds:Rectangle = new Rectangle((Screen.mainScreen.bounds.width / 2 - (nativeWindow.width/2)), (Screen.mainScreen.bounds.height / 2 - (nativeWindow.height/2)), nativeWindow.width, nativeWindow.height);
+				nativeWindow.bounds=initialBounds;
+			}
+
+			private function registerTrayMenu():void
+			{
+				var trayIcon:Bitmap=new trayIcon;
+				
+				NativeApplication.nativeApplication.icon.bitmaps=[trayIcon.bitmapData];
+				var sysTrayIcon: SystemTrayIcon = NativeApplication.nativeApplication.icon as SystemTrayIcon;
+				sysTrayIcon.tooltip = "wFinder v0.1-- quick launcher";
+				sysTrayIcon.addEventListener(MouseEvent.CLICK, handleSysTrayRestore);
+				
+				var sysTrayMenu: NativeMenu = new NativeMenu();
+				var restoreItem: NativeMenuItem = sysTrayMenu.addItem(new NativeMenuItem("恢复窗口"));
+				restoreItem.addEventListener(Event.SELECT, handleSysTrayRestore);
+				var exitItem: NativeMenuItem = sysTrayMenu.addItem(new NativeMenuItem("退出wFinder"));
+				exitItem.addEventListener(Event.SELECT, handleSysTrayExit);
+				sysTrayIcon.menu = sysTrayMenu;
+			}
+			
+			private function handleSysTrayRestore(event:Event): void {
+				if (!nativeWindow.visible) {					
+					nativeWindow.visible = true;
+					nativeWindow.activate();
+				}
+			}
+			
+			private function handleSysTrayExit(event:Event):void
+			{
+				nativeWindow.dispatchEvent(new Event(Event.CLOSING,true,true));
+			}
+			
+			private function initMemoryDb():void
+			{
+				memConnection=new SQLConnection;
+				memConnection.open(null);
+				BuilderDb.createSchema(memConnection);
+				sqlgrid.sqlCommand.connection=memConnection;
+			}
+			
+			protected function windowedapplication1_creationCompleteHandler(event:FlexEvent):void
+			{			
+				centerMeOnScreen();
+				nativeWindow.addEventListener(Event.CLOSING,closeHandle);
+				nativeApplication.addEventListener(InvokeEvent.INVOKE,invokeHandler);
+				this.addEventListener(KeyboardEvent.KEY_UP,AltDown);
+			//	NativeApplication.nativeApplication.idleThreshold=30;
+			//	nativeApplication.addEventListener(Event.USER_IDLE,idleHandler);
+				registerTrayMenu();		
+				BuilderDb.checkAndInitDb();
+				//initMemoryDb();
+				setTimeout(lazyProcess,10000);
+				//setTimeout(firstDump,4000);
+			} 	
+			
+			private function AltDown(event:KeyboardEvent):void
+			{
+				if(event.keyCode==18)
+				{
+					var top10Win:Top10Show=Top10Show(PopUpManager.createPopUp(this,Top10Show,false));
+					top10Win.conn=conn;
+					top10Win.addEventListener(ExecuteEvent.EXECUTE,userExecuteEvent);
+					top10Win.itemDbHandler=gridDbHandler;
+					PopUpManager.centerPopUp(top10Win);					
+				}				
+			}
+			
+			protected function invokeHandler(event:InvokeEvent):void
+			{
+				if(!nativeWindow.visible)
+				{
+					nativeWindow.activate();
+					nativeWindow.visible=true;
+				}
+			}
+			
+			protected function idleHandler(event:Event):void
+			{
+				trace("idle time out");
+				if(memConnection!=null && memConnection.connected)
+				{
+					BuilderDb.dumpToMemoryDb(memConnection);
+					trace("dump db completed!");
+				}				
+			}
+			
+			protected function lazyProcess():void
+			{
+				stubForServer=new ConnectToServer;
+				sqlgrid.itemDbHandler=gridDbHandler;					
+			}
+			
+			protected function firstDump():void
+			{
+				if(memConnection!=null && memConnection.connected)
+				{
+					BuilderDb.dumpToMemoryDb(memConnection);
+				}
+			}
+			
+			public function gridDbHandler(employee:Object):void			
+			{
+				var lnkPath:String=employee.fullpath+"\\"+employee.fname;
+				new TestSqlCommand().addExecuteCount(int(employee.fid));
+				var cmdText:String="open|"+lnkPath;
+				stubForServer.sendCmd(cmdText);
+			}
+			
+			public function closeHandle(evt:Event):void
+			{
+				evt.preventDefault();	
+				sqlgrid.dispose();
+				if(stubForServer!=null)
+				{
+					stubForServer.dispose();
+				}
+				nativeWindow.close();
+				nativeApplication.exit();
+			}
+
+			protected function close_clickHandler(event:MouseEvent):void
+			{
+				nativeWindow.dispatchEvent(new Event(Event.CLOSING,true,true));				
+			}
+			
+			protected function userExecuteEvent(event:ExecuteEvent):void
+			{
+				if(event.nosearchresult)
+				{
+					stubForServer.sendCmd("open|"+event.nosearchresult);
+				}else if(event.executetype=="location")
+				{
+					stubForServer.sendCmd("location|"+event.attachItem.fullpath+"\\"+event.attachItem.fname);
+				}
+				nativeWindow.minimize();
+				nativeWindow.visible=false;				
+			}
+
+
+			protected function group1_keyDownHandler(event:KeyboardEvent):void
+			{
+				if(event.keyCode==27)
+				{
+					nativeWindow.minimize();
+					nativeWindow.visible=false;		
+				}
+			}
+
+]]>
+	</fx:Script>
+	<s:Group height="300" x="18" y="80" width="516" keyDown="group1_keyDownHandler(event)">
+		<s:layout>
+			<s:BasicLayout/>
+		</s:layout>
+		<s:Rect radiusX="5" radiusY="5" left="0" right="0" top="0" bottom="0">
+			<s:fill>
+				<!--- @private -->
+				<s:SolidColor id="backgroundFill" alpha="0" />
+			</s:fill>
+		</s:Rect>
+		<views:sqlUI x="17" y="52" width="468" id="sqlgrid" height="295" execute="userExecuteEvent(event)" />		
+	</s:Group>
+
+</s:WindowedApplication>

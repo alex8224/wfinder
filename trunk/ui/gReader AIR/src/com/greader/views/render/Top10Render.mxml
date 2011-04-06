@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				xmlns:s="library://ns.adobe.com/flex/spark" 
+				xmlns:mx="library://ns.adobe.com/flex/mx" 
+				autoDrawBackground="false"  width="98%" height="36" verticalCenter="0">
+	<fx:Script>
+		<![CDATA[
+			import com.greader.util;
+			
+			import mx.events.FlexEvent;
+			override public function set data(value:Object):void
+			{				
+					iconFile.visible=true;
+					txtFileName.visible=true;
+					var newBmp:Bitmap=new Bitmap(util.getBmpData(value.fullpath+"\\"+value.fname));
+					if(newBmp!=null)
+					{
+						iconFile.source=newBmp;					
+					}
+					txtFileName.text=value.fname.toString().substring(0,20);
+					if(value.fname.toString().length>20)
+						txtFileName.text+="......";
+					this.toolTip=value.fullpath;	
+					this.seqnum.text=value.seq;
+			}
+		]]>		
+	</fx:Script>
+	<s:transitions>
+		<mx:Transition fromState="normal" toState="hovered">
+			<s:Animate target="{flightPlan}" duration="200">				
+				<s:SimpleMotionPath property="alpha"/>
+			</s:Animate>
+		</mx:Transition>
+		<mx:Transition fromState="hovered" toState="normal">
+			<s:Animate target="{flightPlan}" duration="200" >
+				<s:SimpleMotionPath property="alpha"/>
+			</s:Animate>
+		</mx:Transition>
+		<mx:Transition fromState="normal" toState="selected">
+			<s:Animate target="{flightPlan}" duration="200">				
+				<s:SimpleMotionPath property="alpha"/>
+			</s:Animate>
+		</mx:Transition>
+		<mx:Transition fromState="selected" toState="normal">
+			<s:Animate target="{flightPlan}" duration="200" >
+				<s:SimpleMotionPath property="alpha"/>
+			</s:Animate>
+		</mx:Transition>
+	</s:transitions>
+	<s:states>
+		<s:State name="normal"/>
+		<s:State name="selected"/>
+		<s:State name="hovered"/>
+	</s:states>
+	<s:VGroup width="100%" gap="5" height="100%">		
+
+	<s:HGroup verticalAlign="middle" width="100%" horizontalAlign="center">
+		<s:filters>
+			<s:DropShadowFilter distance="2"/>
+		</s:filters>
+		<s:Group height="34" width="100%" id="normalType">
+			<s:Rect left="0" right="0" top="0" bottom="0" radiusX="3" radiusY="3">
+				<s:fill>
+					<s:SolidColor id="flightPlan" color.hovered="#605F5F" color="#494747" alpha="0" alpha.hovered=".9" alpha.selected="1"/>
+				</s:fill>
+			</s:Rect>
+			<mx:Image id="iconFile" height="32" width="32" left="20"/>			
+			<s:Label id="txtFileName" color="#FFFFFF" left="60" verticalCenter="2" fontFamily="微软雅黑" />					 
+		</s:Group>
+		<s:Group>
+			<s:layout>
+				<s:BasicLayout/>									
+			</s:layout>
+			<s:Rect id="seqArea" width="20" height="20" radiusX="10" radiusY="10">
+				<s:fill>
+					<s:SolidColor color="red"/>
+				</s:fill>	
+			</s:Rect>
+			<s:Label id="seqnum"  left="5" top="3" color="white" fontWeight="bold" fontFamily="微软雅黑" fontSize="15"/>
+		</s:Group>			
+	</s:HGroup>
+		
+	</s:VGroup>
+</s:ItemRenderer>
