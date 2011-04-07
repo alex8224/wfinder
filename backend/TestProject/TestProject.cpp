@@ -297,10 +297,76 @@ void installHotkey()
 	}
 }
 
+void callwfinder()
+{
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+	TCHAR currdir[MAX_PATH]={0,};
+	GetCurrentDirectory(MAX_PATH,currdir);
+	ZeroMemory( &si, sizeof(si) );
+	si.cb = sizeof(si);
+	ZeroMemory( &pi, sizeof(pi) );
+	StringBuilder str;
+	str.append(currdir).append(_T("\\wfinder.exe"));
+
+	// Start the child process. 
+	CreateProcess(NULL,str.c_str(),NULL,NULL,FALSE,0,NULL,NULL,&si,&pi);
+	WaitForSingleObject( pi.hProcess, INFINITE );
+
+	CloseHandle( pi.hProcess );
+	CloseHandle( pi.hThread );
+
+	HWND finderHwnd=FindWindow(NULL,_T("wFinder"));
+	if(finderHwnd!=NULL)
+	{
+		SetForegroundWindow(finderHwnd);
+		SetFocus(finderHwnd);
+	}
+
+}
+unsigned __stdcall hotkeyProcessThread(void *attach)
+{
+	if(RegisterHotKey(NULL,WM_USER+1982,MOD_WIN,0x57))
+	{
+#ifdef DEBUG
+		_tprintf(_T("hot key win+w ok\n"));
+#endif
+		
+		MSG msg={0,};
+		while(GetMessage(&msg,NULL,0,0)!=0)
+		{
+			if(msg.message==WM_HOTKEY)
+			{
+				callwfinder();
+			}
+			if(msg.message==WM_USER+19820)
+			{
+#ifdef DEBUG
+				_tprintf(_T("hotkey thread exited\n"));
+#endif
+				
+				break;
+			}
+		}
+
+		UnregisterHotKey(NULL,WM_USER+1982);
+	}
+	return 0;
+}
+
+unsigned processHotkey()
+{
+	unsigned threadID=0;
+	HANDLE hotkeyThread=(HANDLE)_beginthreadex(NULL,0,&hotkeyProcessThread,NULL,0,&threadID);
+	CloseHandle(hotkeyThread);
+	return threadID;
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 	setlocale(LC_ALL,"chs");
-	installHotkey();//install global hotkey on air app win+w
+	//installHotkey();//install global hotkey on air app win+w
+	unsigned	hotkeytid=processHotkey();	
 	connection.openConnection();
 	fsmonitor* check=new fsmonitor;
 	try{
@@ -316,6 +382,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 		check->stopMonitor();
 		connection.closeConnection();
+		PostThreadMessage(hotkeytid,WM_USER+19820,NULL,NULL);
 	}catch(int errCode)
 	{
 		printf("detect error,errcode=%d,error description=%s\n",errCode,connection.printError());	
